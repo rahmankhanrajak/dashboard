@@ -6,7 +6,6 @@ const authSlice = createSlice({
     user: null,
     accessToken: null,
     isAuthReady: false,
-    // currentPage: "login", 
   },
   reducers: {
     setCredentials: (state, action) => {
@@ -14,24 +13,30 @@ const authSlice = createSlice({
       state.accessToken = action.payload.accessToken;
       state.isAuthReady = true;
     },
+
+    setUser: (state, action) => {
+      state.user = action.payload;
+    },
+
     setAccessToken: (state, action) => {
       state.accessToken = action.payload;
-      state.isAuthReady = true;
     },
+
     authReady: (state) => {
       state.isAuthReady = true;
     },
+
     logout: (state) => {
       state.user = null;
       state.accessToken = null;
       state.isAuthReady = true;
     },
-  
   },
 });
 
 export const {
   setCredentials,
+  setUser,         
   setAccessToken,
   logout,
   authReady,
