@@ -25,6 +25,24 @@ interface RefreshResponse {
   accessToken: string;
 }
 
+interface OrderItem {
+  id: number;
+  productId: number;
+  title: string;
+  category: string;
+  price: number;
+  rating: number;
+  qty: number;
+}
+
+interface Order {
+  id: number;
+  total: number;
+  status: 'PENDING' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+  createdAt: string;
+  items: OrderItem[];
+}
+
 export const authApi = createApi({
   reducerPath: 'authApi',
   baseQuery: baseQueryWithReauth,
@@ -55,12 +73,40 @@ export const authApi = createApi({
         method: 'POST',
       }),
     }),
+
+    createOrder: builder.mutation<any, { items: CartItem[] }>({
+      query: (body) => ({
+        url: '/api/orders',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    getOrders: builder.query<Order[], void>({
+  query: () => ({
+    url: '/api/orders',
+    method: 'GET',
+  }),
+}),
+
+getOrderById: builder.query<Order, number>({
+  query: (id) => ({
+    url: `/api/orders/${id}`,
+    method: 'GET',
+  }),
+}),
   }),
 });
+
+
 
 export const { 
   useLoginMutation, 
   useRegisterMutation, 
   useLogoutMutation,
-  useRefreshMutation 
+  useRefreshMutation,
+  useCreateOrderMutation, 
+  useGetOrdersQuery,
+useGetOrderByIdQuery,
+
 } = authApi;

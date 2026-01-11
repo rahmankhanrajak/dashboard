@@ -16,8 +16,8 @@ import {
 import { useLogoutMutation } from '../store/authApi';
 import { logout as logoutAction } from '../store/authSlice';
 import type { RootState } from '../store/store';
+import { useCreateOrderMutation } from '../store/authApi';
 
-/* ================= TYPES ================= */
 
 interface Product {
   id: number;
@@ -40,11 +40,11 @@ interface ProductsApiResponse {
 type ViewType = 'products' | 'cart';
 
 const ProductCatalog = () => {
-  /* ================= AUTH (DO NOT TOUCH) ================= */
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
   const [logout, { isLoading }] = useLogoutMutation();
+  const [createOrder, { isLoading: isOrderLoading }] = useCreateOrderMutation();
 
   useEffect(() => {
     if (!user) navigate('/login');
@@ -59,7 +59,6 @@ const ProductCatalog = () => {
     }
   };
 
-  /* ================= STATE ================= */
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +70,20 @@ const ProductCatalog = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [view, setView] = useState<ViewType>('products');
 
-  /* ================= FETCH ================= */
+
+
+
+const handlePurchase = async () => {
+  try {
+    await createOrder({ items: cart }).unwrap();
+    alert("Order placed successfully!");
+    setCart([]); 
+  } catch (err) {
+    console.error(err);
+    alert("Order failed");
+  }
+};
+
   useEffect(() => {
     const loadProducts = async () => {
       try {
@@ -87,7 +99,6 @@ const ProductCatalog = () => {
     loadProducts();
   }, []);
 
-  /* ================= FILTER DATA ================= */
   const categories = useMemo<string[]>(
     () => [...new Set(products.map(p => p.category))],
     [products]
@@ -124,7 +135,6 @@ const ProductCatalog = () => {
     }
   }, [products, search, selectedCategories, sortBy]);
 
-  /* ================= CART ================= */
   const addToCart = (product: Product) => {
     setCart(prev => {
       const existing = prev.find(p => p.id === product.id);
@@ -155,7 +165,6 @@ const ProductCatalog = () => {
     [cart]
   );
 
-  /* ================= LOADING / ERROR ================= */
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -172,10 +181,8 @@ const ProductCatalog = () => {
     );
   }
 
-  /* ================= UI ================= */
   return (
     <div className="h-screen flex flex-col bg-gray-100">
-      {/* HEADER */}
       <header className="h-16 bg-white shadow flex items-center justify-between px-6">
         <div className="font-bold text-lg">E-Commerce</div>
 
@@ -203,6 +210,13 @@ const ProductCatalog = () => {
           </div>
 
           <span className="text-sm text-gray-600">{user?.name}</span>
+          <button
+  onClick={() => navigate('/orders')}
+  className="bg-indigo-600 text-white px-3 py-1 rounded text-sm"
+>
+  My Orders
+</button>
+
 
           <button
             onClick={handleLogout}
@@ -215,9 +229,7 @@ const ProductCatalog = () => {
         </div>
       </header>
 
-      {/* BODY */}
       <div className="flex flex-1 overflow-hidden">
-        {/* SIDEBAR */}
         <aside className="w-64 bg-slate-900 text-white p-4 overflow-y-auto">
           <p className="text-sm text-gray-400 mb-2">Categories</p>
           {categories.map(cat => (
@@ -244,7 +256,6 @@ const ProductCatalog = () => {
           </select>
         </aside>
 
-        {/* MAIN */}
         <main className="flex-1 p-6 overflow-y-auto">
           {view === 'products' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -284,48 +295,75 @@ const ProductCatalog = () => {
           )}
 
           {view === 'cart' && (
-            <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow">
-              <h2 className="text-xl font-bold mb-4">Shopping Cart</h2>
+  <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow">
+    <button
+      onClick={() => setView('products')}
+      className="mb-4 text-indigo-600 hover:underline flex items-center gap-1"
+    >
+      ← Back to Products
+    </button>
 
-              {cart.map(item => (
-                <div key={item.id} className="flex justify-between items-center border-b py-4">
-                  <div className="flex items-center gap-4">
-                    <img
-                      src={item.thumbnail}
-                      className="w-20 h-20 object-cover rounded"
-                    />
-                    <div>
-                      <p className="font-semibold">{item.title}</p>
-                      <p className="text-sm text-gray-500">₹{item.price}</p>
-                    </div>
-                  </div>
+    <h2 className="text-2xl font-bold mb-6">Shopping Cart</h2>
 
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => decreaseQty(item.id)}>
-                      <Minus />
-                    </button>
-                    <span>{item.qty}</span>
-                    <button onClick={() => increaseQty(item.id)}>
-                      <Plus />
-                    </button>
-                  </div>
+    <div className="grid grid-cols-12 font-semibold text-gray-600 border-b pb-2 mb-4">
+      <div className="col-span-6">Product</div>
+      <div className="col-span-2 text-center">Price</div>
+      <div className="col-span-2 text-center">Quantity</div>
+      <div className="col-span-2 text-right">Subtotal</div>
+    </div>
 
-                  <p className="font-semibold">₹{item.price * item.qty}</p>
-                </div>
-              ))}
+    {cart.map(item => (
+      <div key={item.id} className="grid grid-cols-12 items-center border-b py-4">
+        <div className="col-span-6 flex items-center gap-4">
+          <img
+            src={item.thumbnail}
+            className="w-16 h-16 object-cover rounded"
+          />
+          <div>
+            <p className="font-semibold">{item.title}</p>
+            <p className="text-sm text-gray-500">₹{Math.ceil(item.price)}</p>
+          </div>
+        </div>
 
-              {cart.length > 0 && (
-                <>
-                  <div className="text-right font-bold mt-4">
-                    Total: ₹{Math.ceil(total)}
-                  </div>
-                  <button className="mt-4 w-full bg-green-600 text-white py-3 rounded">
-                    Purchase
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+        <div className="col-span-2 text-center">
+          ₹{Math.ceil(item.price)}
+        </div>
+
+        <div className="col-span-2 flex justify-center items-center gap-3">
+          <button onClick={() => decreaseQty(item.id)} className="p-1 border rounded">
+            <Minus size={16} />
+          </button>
+          <span className="font-medium">{item.qty}</span>
+          <button onClick={() => increaseQty(item.id)} className="p-1 border rounded">
+            <Plus size={16} />
+          </button>
+        </div>
+
+        <div className="col-span-2 text-right font-semibold">
+          ₹{Math.ceil(item.price * item.qty)}
+        </div>
+      </div>
+    ))}
+
+    {cart.length > 0 && (
+      <div className="mt-6 flex flex-col gap-4">
+        <div className="flex justify-end text-lg font-bold">
+          Total: ₹{Math.ceil(total)}
+        </div>
+
+        <button
+  onClick={handlePurchase}
+  disabled={isOrderLoading}
+  className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded text-lg"
+>
+  {isOrderLoading ? "Placing Order..." : "Purchase"}
+</button>
+
+      </div>
+    )}
+  </div>
+)}
+
         </main>
       </div>
     </div>

@@ -2,7 +2,6 @@ import React, { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { useRegisterMutation } from '../store/authApi';
-import { setCredentials } from '../store/authSlice';
 
 function Register() {
   const navigate = useNavigate();
