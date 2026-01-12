@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-
 import {
   ShoppingCart,
   LogOut,
@@ -13,11 +12,17 @@ import {
   Search
 } from 'lucide-react';
 
-import { useLogoutMutation } from '../store/authApi';
+import {
+  useLogoutMutation,
+  useCreateOrderMutation,
+  useGetCartQuery,
+  useAddToCartMutation,
+  useUpdateCartQtyMutation,
+  useRemoveFromCartMutation
+} from '../store/authApi';
+
 import { logout as logoutAction } from '../store/authSlice';
 import type { RootState } from '../store/store';
-import { useCreateOrderMutation } from '../store/authApi';
-
 
 interface Product {
   id: number;
@@ -27,10 +32,6 @@ interface Product {
   rating: number;
   category: string;
   thumbnail: string;
-}
-
-interface CartItem extends Product {
-  qty: number;
 }
 
 interface ProductsApiResponse {
@@ -43,8 +44,16 @@ const ProductCatalog = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
+
   const [logout, { isLoading }] = useLogoutMutation();
   const [createOrder, { isLoading: isOrderLoading }] = useCreateOrderMutation();
+
+  const { data: cartData, refetch: refetchCart } = useGetCartQuery();
+  const [addToCartApi] = useAddToCartMutation();
+  const [updateQtyApi] = useUpdateCartQtyMutation();
+  const [removeFromCartApi] = useRemoveFromCartMutation();
+
+  const cart = cartData?.items || [];
 
   useEffect(() => {
     if (!user) navigate('/login');
@@ -66,23 +75,17 @@ const ProductCatalog = () => {
   const [search, setSearch] = useState<string>('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'default' | 'price-low' | 'price-high' | 'rating'>('default');
-
-  const [cart, setCart] = useState<CartItem[]>([]);
   const [view, setView] = useState<ViewType>('products');
 
-
-
-
-const handlePurchase = async () => {
-  try {
-    await createOrder({ items: cart }).unwrap();
-    alert("Order placed successfully!");
-    setCart([]); 
-  } catch (err) {
-    console.error(err);
-    alert("Order failed");
-  }
-};
+  const handlePurchase = async () => {
+    try {
+      await createOrder().unwrap();
+      alert("Order placed done");
+      refetchCart();
+    } catch {
+      alert("Order failed");
+    }
+  };
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -99,7 +102,7 @@ const handlePurchase = async () => {
     loadProducts();
   }, []);
 
-  const categories = useMemo<string[]>(
+  const categories = useMemo(
     () => [...new Set(products.map(p => p.category))],
     [products]
   );
@@ -112,11 +115,9 @@ const handlePurchase = async () => {
     );
   };
 
-  const filteredProducts = useMemo<Product[]>(() => {
+  const filteredProducts = useMemo(() => {
     let data = products
-      .filter(p =>
-        p.title.toLowerCase().includes(search.toLowerCase())
-      )
+      .filter(p => p.title.toLowerCase().includes(search.toLowerCase()))
       .filter(p =>
         selectedCategories.length === 0
           ? true
@@ -135,33 +136,34 @@ const handlePurchase = async () => {
     }
   }, [products, search, selectedCategories, sortBy]);
 
-  const addToCart = (product: Product) => {
-    setCart(prev => {
-      const existing = prev.find(p => p.id === product.id);
-      return existing
-        ? prev.map(p =>
-            p.id === product.id ? { ...p, qty: p.qty + 1 } : p
-          )
-        : [...prev, { ...product, qty: 1 }];
+  const addToCart = async (product: Product) => {
+    await addToCartApi({
+      productId: product.id,
+      title: product.title,
+      category: product.category,
+      price: product.price,
+      rating: product.rating,
+      qty: 1,
     });
+    refetchCart();
   };
 
-  const increaseQty = (id: number) => {
-    setCart(prev =>
-      prev.map(p => (p.id === id ? { ...p, qty: p.qty + 1 } : p))
-    );
+  const increaseQty = async (productId: number, qty: number) => {
+    await updateQtyApi({ productId, qty: qty + 1 });
+    refetchCart();
   };
 
-  const decreaseQty = (id: number) => {
-    setCart(prev =>
-      prev
-        .map(p => (p.id === id ? { ...p, qty: p.qty - 1 } : p))
-        .filter(p => p.qty > 0)
-    );
+  const decreaseQty = async (productId: number, qty: number) => {
+    if (qty === 1) {
+      await removeFromCartApi(productId);
+    } else {
+      await updateQtyApi({ productId, qty: qty - 1 });
+    }
+    refetchCart();
   };
 
-  const total = useMemo<number>(
-    () => cart.reduce((sum, item) => sum + item.price * item.qty, 0),
+  const total = useMemo(
+    () => cart.reduce((sum: number, item: any) => sum + item.price * item.qty, 0),
     [cart]
   );
 
@@ -197,10 +199,7 @@ const handlePurchase = async () => {
         </div>
 
         <div className="flex items-center gap-6">
-          <div
-            onClick={() => setView('cart')}
-            className="relative cursor-pointer"
-          >
+          <div onClick={() => setView('cart')} className="relative cursor-pointer">
             <ShoppingCart />
             {cart.length > 0 && (
               <span className="absolute -top-2 -right-2 bg-indigo-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
@@ -210,13 +209,13 @@ const handlePurchase = async () => {
           </div>
 
           <span className="text-sm text-gray-600">{user?.name}</span>
-          <button
-  onClick={() => navigate('/orders')}
-  className="bg-indigo-600 text-white px-3 py-1 rounded text-sm"
->
-  My Orders
-</button>
 
+          <button
+            onClick={() => navigate('/orders')}
+            className="bg-indigo-600 text-white px-3 py-1 rounded text-sm"
+          >
+            My Orders
+          </button>
 
           <button
             onClick={handleLogout}
@@ -242,18 +241,19 @@ const handlePurchase = async () => {
               <span className="capitalize">{cat}</span>
             </label>
           ))}
-
           <p className="text-sm text-gray-400 mt-6 mb-2">Sort By</p>
-          <select
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value as typeof sortBy)}
-            className="w-full p-2 rounded bg-slate-800"
-          >
-            <option value="default">Default</option>
-            <option value="price-low">Price ↑</option>
-            <option value="price-high">Price ↓</option>
-            <option value="rating">Rating</option>
-          </select>
+
+<select
+  value={sortBy}
+  onChange={(e) => setSortBy(e.target.value as 'default' | 'price-low' | 'price-high' | 'rating')}
+  className="w-full p-2 rounded bg-slate-800"
+>
+  <option value="default">Default</option>
+  <option value="price-low">Price ↑</option>
+  <option value="price-high">Price ↓</option>
+  <option value="rating">Rating</option>
+</select>
+
         </aside>
 
         <main className="flex-1 p-6 overflow-y-auto">
@@ -261,26 +261,9 @@ const handlePurchase = async () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {filteredProducts.map(p => (
                 <div key={p.id} className="bg-white rounded shadow p-4 flex flex-col">
-                  <div className="h-40 mb-3">
-                    <img
-                      src={p.thumbnail}
-                      className="h-full w-full object-cover rounded"
-                    />
-                  </div>
-
-                  <h3 className="font-semibold text-sm line-clamp-2 h-10">
-                    {p.title}
-                  </h3>
-
-                  <p className="text-xs text-gray-500 capitalize h-5">
-                    {p.category}
-                  </p>
-
-                  <div className="flex items-center gap-1 h-6">
-                    <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    <span className="text-sm">{p.rating}</span>
-                  </div>
-
+                  <img src={p.thumbnail} className="h-40 w-full object-cover rounded mb-2" />
+                  <h3 className="font-semibold">{p.title}</h3>
+                  <p className="text-sm text-gray-500 capitalize">{p.category}</p>
                   <p className="font-bold mt-auto">₹{p.price}</p>
 
                   <button
@@ -294,76 +277,62 @@ const handlePurchase = async () => {
             </div>
           )}
 
+          
+
           {view === 'cart' && (
-  <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow">
-    <button
-      onClick={() => setView('products')}
-      className="mb-4 text-indigo-600 hover:underline flex items-center gap-1"
-    >
-      ← Back to Products
-    </button>
-
-    <h2 className="text-2xl font-bold mb-6">Shopping Cart</h2>
-
-    <div className="grid grid-cols-12 font-semibold text-gray-600 border-b pb-2 mb-4">
-      <div className="col-span-6">Product</div>
-      <div className="col-span-2 text-center">Price</div>
-      <div className="col-span-2 text-center">Quantity</div>
-      <div className="col-span-2 text-right">Subtotal</div>
-    </div>
-
-    {cart.map(item => (
-      <div key={item.id} className="grid grid-cols-12 items-center border-b py-4">
-        <div className="col-span-6 flex items-center gap-4">
-          <img
-            src={item.thumbnail}
-            className="w-16 h-16 object-cover rounded"
-          />
-          <div>
-            <p className="font-semibold">{item.title}</p>
-            <p className="text-sm text-gray-500">₹{Math.ceil(item.price)}</p>
-          </div>
-        </div>
-
-        <div className="col-span-2 text-center">
-          ₹{Math.ceil(item.price)}
-        </div>
-
-        <div className="col-span-2 flex justify-center items-center gap-3">
-          <button onClick={() => decreaseQty(item.id)} className="p-1 border rounded">
-            <Minus size={16} />
-          </button>
-          <span className="font-medium">{item.qty}</span>
-          <button onClick={() => increaseQty(item.id)} className="p-1 border rounded">
-            <Plus size={16} />
-          </button>
-        </div>
-
-        <div className="col-span-2 text-right font-semibold">
-          ₹{Math.ceil(item.price * item.qty)}
-        </div>
-      </div>
-    ))}
-
-    {cart.length > 0 && (
-      <div className="mt-6 flex flex-col gap-4">
-        <div className="flex justify-end text-lg font-bold">
-          Total: ₹{Math.ceil(total)}
-        </div>
-
-        <button
-  onClick={handlePurchase}
-  disabled={isOrderLoading}
-  className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded text-lg"
+            <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow">
+              <button
+  onClick={() => setView('products')}
+  className="mb-4 text-indigo-600 hover:underline flex items-center gap-1"
 >
-  {isOrderLoading ? "Placing Order..." : "Purchase"}
+  ← Back to Products
 </button>
 
-      </div>
-    )}
-  </div>
-)}
+              <h2 className="text-2xl font-bold mb-4">Shopping Cart</h2>
+{cart.map(item => {
+  const productImage = products.find(p => p.id === item.productId)?.thumbnail;
 
+  return (
+    <div key={item.productId} className="flex items-center justify-between py-3 border-b">
+      <div className="flex items-center gap-3">
+        {productImage && (
+          <img
+            src={productImage}
+            alt={item.title}
+            className="w-14 h-14 object-cover rounded"
+          />
+        )}
+
+        <div>
+          <p className="font-semibold">{item.title}</p>
+          <p className="text-sm text-gray-500">₹{item.price}</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button onClick={() => decreaseQty(item.productId, item.qty)}>
+          <Minus size={16} />
+        </button>
+        <span>{item.qty}</span>
+        <button onClick={() => increaseQty(item.productId, item.qty)}>
+          <Plus size={16} />
+        </button>
+      </div>
+    </div>
+  );
+})}
+
+              <div className="mt-4 font-bold text-right">Total: ₹{total}</div>
+
+              <button
+                onClick={handlePurchase}
+                disabled={isOrderLoading}
+                className="mt-4 w-full bg-green-600 text-white py-2 rounded"
+              >
+                {isOrderLoading ? "Placing Order..." : "Purchase"}
+              </button>
+            </div>
+          )}
         </main>
       </div>
     </div>

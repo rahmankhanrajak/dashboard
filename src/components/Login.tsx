@@ -39,8 +39,6 @@ function Login() {
         accessToken: result.accessToken 
       }));
       
-      console.log('Login successful - Token:', result.accessToken);
-      alert('Login successful!');
       navigate('/dashboard');
     } catch (err: any) {
       console.error('Login error:', err);

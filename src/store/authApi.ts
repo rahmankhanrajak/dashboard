@@ -25,6 +25,20 @@ interface RefreshResponse {
   accessToken: string;
 }
 
+export interface CartItem {
+  id: number;
+  productId: number;
+  title: string;
+  category: string;
+  price: number;
+  rating: number;
+  qty: number;
+}
+
+interface CartResponse {
+  items: CartItem[];
+}
+
 interface OrderItem {
   id: number;
   productId: number;
@@ -74,39 +88,85 @@ export const authApi = createApi({
       }),
     }),
 
-    createOrder: builder.mutation<any, { items: CartItem[] }>({
+    getCart: builder.query<CartResponse, void>({
+      query: () => ({
+        url: '/api/cart',
+        method: 'GET',
+      }),
+    }),
+
+    addToCart: builder.mutation<void, Partial<CartItem>>({
       query: (body) => ({
-        url: '/api/orders',
+        url: '/api/cart/items',
         method: 'POST',
         body,
       }),
     }),
 
+    updateCartQty: builder.mutation<void, { productId: number; qty: number }>({
+      query: (body) => ({
+        url: '/api/cart/items',
+        method: 'PUT',
+        body,
+      }),
+    }),
+
+    removeFromCart: builder.mutation<void, number>({
+      query: (productId) => ({
+        url: `/api/cart/items/${productId}`,
+        method: 'DELETE',
+      }),
+    }),
+
+    createOrder: builder.mutation<Order, void>({
+      query: () => ({
+        url: '/api/orders',
+        method: 'POST',
+      }),
+    }),
+
     getOrders: builder.query<Order[], void>({
-  query: () => ({
-    url: '/api/orders',
-    method: 'GET',
+      query: () => ({
+        url: '/api/orders',
+        method: 'GET',
+      }),
+    }),
+
+    getOrderById: builder.query<Order, number>({
+      query: (id) => ({
+        url: `/api/orders/${id}`,
+        method: 'GET',
+      }),
+    }),
+    cancelOrder: builder.mutation<{ message: string; order: any }, number>({
+  query: (orderId) => ({
+    url: `/api/orders/${orderId}/cancel`,
+    method: 'PATCH',
+  }),
+}),
+payOrder: builder.mutation<{ message: string; order: any }, number>({
+  query: (orderId) => ({
+    url: `/api/orders/${orderId}/pay`,
+    method: 'PATCH',
   }),
 }),
 
-getOrderById: builder.query<Order, number>({
-  query: (id) => ({
-    url: `/api/orders/${id}`,
-    method: 'GET',
-  }),
-}),
+
   }),
 });
-
-
 
 export const { 
   useLoginMutation, 
   useRegisterMutation, 
   useLogoutMutation,
   useRefreshMutation,
+  useGetCartQuery,
+  useAddToCartMutation,
+  useUpdateCartQtyMutation,
+  useRemoveFromCartMutation,
   useCreateOrderMutation, 
   useGetOrdersQuery,
-useGetOrderByIdQuery,
-
+  useGetOrderByIdQuery,
+  useCancelOrderMutation,
+  usePayOrderMutation,
 } = authApi;

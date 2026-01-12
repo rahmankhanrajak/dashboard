@@ -35,7 +35,7 @@ function Register() {
       }).unwrap();
       
       console.log('Registration successful', result);
-      alert('Registration successful! Please login.');
+      alert('success');
       navigate('/login');
     } catch (err: any) {
       console.error('Registration error:', err);
